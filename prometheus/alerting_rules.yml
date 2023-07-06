@@ -1,0 +1,13 @@
+# alert rules (to be used by AlertManager)
+groups:
+  - name: demo
+    #interval: 1s
+    rules:
+      # https://prometheus.io/docs/tutorials/instrumenting_http_server_in_go/
+      - alert: HighPingCount
+        expr: ping_request_count > 5
+        for: 10s
+        labels:
+          severity: critical
+        annotations:
+          summary: "High ping count value"

@@ -1,0 +1,105 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: src
+    container_name: app
+    environment:
+      PORT: 8080
+    # https://medium.com/@TimvanBaarsen/how-to-connect-to-the-docker-host-from-inside-a-docker-container-112b4c71bc66
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - monitoring
+    ports:
+      - 8080:8080
+
+  # http://0.0.0.0:9090/config
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    entrypoint:
+      - "/bin/prometheus"
+      - "--config.file=/opt/prometheus/prometheus.yml"
+      - "--query.lookback-delta=15s"
+    volumes:
+      - ./.generated/prometheus.yml:/opt/prometheus/prometheus.yml
+      - ./prometheus/alerting_rules.yml:/etc/prometheus/alerting_rules.yml
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring
+    env_file:
+      - .env
+    ports:
+      - 9090:9090
+
+  # http://0.0.0.0:9093/#/status
+  alertmanager:
+    image: prom/alertmanager
+    container_name: alertmanager
+    volumes:
+      - ./.generated/alertmanager.yml/:/etc/alertmanager/alertmanager.yml
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    env_file:
+      - .env
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+    ports:
+      - 9093:9093
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    hostname: grafana
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_AUTH_DISABLE_SIGNOUT_MENU: "true"
+      GF_AUTH_DISABLE_LOGIN_FORM: "false" # "true"
+      GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
+      GF_INSTALL_PLUGINS: "grafana-clock-panel"
+      GF_ENABLE_GZIP: true
+    networks:
+      - monitoring
+    volumes:
+      - "/etc/ssl/certs:/etc/ssl/certs:ro"
+      - ./grafana/dashboard.yaml:/etc/grafana/provisioning/dashboards/main.yaml
+      - ./grafana/datasource.yaml:/etc/grafana/provisioning/datasources/default.yaml
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    ports:
+      - 3000:3000
+    depends_on:
+      - prometheus
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    # https://github.com/containrrr/watchtower/blob/787ce72ffd3b16b757a9a3c152a666774f74d458/docs/http-api-mode.md?plain=1#L24
+    command: --interval 30 --http-api-update
+    environment:
+      WATCHTOWER_LABEL_ENABLE: true
+    env_file:
+      - .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 8081:8080
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
+        
+networks:
+  monitoring:
+    name: monitoring
+    driver: bridge 

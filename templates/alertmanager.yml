@@ -1,0 +1,14 @@
+# https://github.com/prometheus/alertmanager/blob/main/doc/examples/simple.yml
+global:
+  resolve_timeout: 1m
+  slack_api_url: SLACK_URL
+ 
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname]
+
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      - channel: "#SLACK_CHANNEL"
+        send_resolved: true
