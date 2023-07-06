@@ -1,4 +1,4 @@
-module prom_example
+module server
 
 go 1.20
 
